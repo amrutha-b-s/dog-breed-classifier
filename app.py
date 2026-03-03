@@ -1,9 +1,12 @@
 import os
 from flask import Flask, render_template, request, send_from_directory, redirect
-from PIL import Image
-import numpy as np
 
 app = Flask(__name__)
+
+# Ensure static folder exists
+if not os.path.exists("static"):
+    os.makedirs("static")
+
 
 # ---------------- HOME ----------------
 @app.route("/")
@@ -20,16 +23,22 @@ def predict():
         if not file or file.filename == "":
             return "Please upload an image."
 
-        # Safe image processing
-        img = Image.open(file.stream).convert("RGB")
-        img = img.resize((224, 224))
-        img_array = np.array(img) / 255.0
-        img_array = np.expand_dims(img_array, axis=0)
+        # Save uploaded image inside static folder
+        upload_path = os.path.join("static", file.filename)
+        file.save(upload_path)
 
-        # Demo prediction (since no TensorFlow on Render free)
-        prediction_text = "Prediction Successful (Demo Mode)"
+        # ---- DEMO PREDICTION (for Render Free Plan) ----
+        # Replace this section with real model logic in local version
 
-        return render_template("result.html", prediction=prediction_text)
+        breed = "Doberman"
+        confidence = "85.56"
+
+        return render_template(
+            "result.html",
+            breed=breed,
+            confidence=confidence,
+            image_url="/" + upload_path
+        )
 
     except Exception as e:
         return f"Error: {str(e)}"
@@ -40,9 +49,11 @@ def predict():
 def read_pdf():
     return send_from_directory("static", "report.pdf")
 
+
 @app.route("/download")
 def download_pdf():
     return send_from_directory("static", "report.pdf", as_attachment=True)
+
 
 @app.route("/skip")
 def skip():
