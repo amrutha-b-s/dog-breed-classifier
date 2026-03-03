@@ -1,69 +1,62 @@
+from flask import Flask, request, render_template
 import os
 import numpy as np
-from flask import Flask, render_template, request, send_from_directory
-from werkzeug.utils import secure_filename
-from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input, decode_predictions
-from tensorflow.keras.preprocessing import image
+from PIL import Image
 
 app = Flask(__name__)
 
-# Load pretrained model
-model = MobileNetV2(weights="imagenet")
+# ---------------------------------------------------
+# Detect if running on Render
+# ---------------------------------------------------
+ON_RENDER = os.getenv("RENDER") is not None
 
-CONFIDENCE_THRESHOLD = 0.20  # Lowered for demo accuracy
+# ---------------------------------------------------
+# Load model only if NOT on Render
+# ---------------------------------------------------
+if not ON_RENDER:
+    import tensorflow as tf
+    model = tf.keras.models.load_model("model.h5")
+else:
+    model = None
 
-UPLOAD_FOLDER = os.path.join("static", "uploads")
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
-
+# ---------------------------------------------------
+# Home Route
+# ---------------------------------------------------
 @app.route("/")
 def home():
     return render_template("index.html")
 
+# ---------------------------------------------------
+# Prediction Route
+# ---------------------------------------------------
 @app.route("/predict", methods=["POST"])
 def predict():
+    if "file" not in request.files:
+        return "No file uploaded"
 
     file = request.files["file"]
 
     if file.filename == "":
-        return "No file selected"
+        return "No selected file"
 
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    # If deployed version → skip real prediction
+    if ON_RENDER or model is None:
+        return render_template("result.html",
+                               prediction="Model disabled in deployed version")
 
-    file.save(filepath)
-
-    # Correct input size
-    img = image.load_img(filepath, target_size=(224, 224))
-    img_array = image.img_to_array(img)
+    # ---------- Local Prediction ----------
+    img = Image.open(file).resize((224, 224))
+    img_array = np.array(img) / 255.0
     img_array = np.expand_dims(img_array, axis=0)
-    img_array = preprocess_input(img_array)
 
-    preds = model.predict(img_array)
-    decoded = decode_predictions(preds, top=1)[0][0]
+    prediction = model.predict(img_array)
+    predicted_class = np.argmax(prediction)
 
-    breed = decoded[1]
-    confidence = float(decoded[2])
+    return render_template("result.html",
+                           prediction=f"Predicted Class: {predicted_class}")
 
-    if confidence < CONFIDENCE_THRESHOLD:
-        breed = "Breed not recognized"
-
-    confidence_percent = round(confidence * 100, 2)
-
-    return render_template(
-        "result.html",
-        image_path="uploads/" + filename,
-        breed=breed,
-        confidence=confidence_percent
-    )
-
-@app.route("/read_pdf")
-def read_pdf():
-    return send_from_directory("static", "report.pdf")
-
-@app.route("/download_pdf")
-def download_pdf():
-    return send_from_directory("static", "report.pdf", as_attachment=True)
-
+# ---------------------------------------------------
+# Run App
+# ---------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True)
