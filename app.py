@@ -1,62 +1,54 @@
-from flask import Flask, request, render_template
 import os
-import numpy as np
+from flask import Flask, render_template, request, send_from_directory, redirect
 from PIL import Image
+import numpy as np
 
 app = Flask(__name__)
 
-# ---------------------------------------------------
-# Detect if running on Render
-# ---------------------------------------------------
-ON_RENDER = os.getenv("RENDER") is not None
-
-# ---------------------------------------------------
-# Load model only if NOT on Render
-# ---------------------------------------------------
-if not ON_RENDER:
-    import tensorflow as tf
-    model = tf.keras.models.load_model("model.h5")
-else:
-    model = None
-
-# ---------------------------------------------------
-# Home Route
-# ---------------------------------------------------
+# ---------------- HOME ----------------
 @app.route("/")
 def home():
     return render_template("index.html")
 
-# ---------------------------------------------------
-# Prediction Route
-# ---------------------------------------------------
+
+# ---------------- PREDICT ----------------
 @app.route("/predict", methods=["POST"])
 def predict():
-    if "file" not in request.files:
-        return "No file uploaded"
+    try:
+        file = request.files.get("file")
 
-    file = request.files["file"]
+        if not file or file.filename == "":
+            return "Please upload an image."
 
-    if file.filename == "":
-        return "No selected file"
+        # Safe image processing
+        img = Image.open(file.stream).convert("RGB")
+        img = img.resize((224, 224))
+        img_array = np.array(img) / 255.0
+        img_array = np.expand_dims(img_array, axis=0)
 
-    # If deployed version → skip real prediction
-    if ON_RENDER or model is None:
-        return render_template("result.html",
-                               prediction="Model disabled in deployed version")
+        # Demo prediction (since no TensorFlow on Render free)
+        prediction_text = "Prediction Successful (Demo Mode)"
 
-    # ---------- Local Prediction ----------
-    img = Image.open(file).resize((224, 224))
-    img_array = np.array(img) / 255.0
-    img_array = np.expand_dims(img_array, axis=0)
+        return render_template("result.html", prediction=prediction_text)
 
-    prediction = model.predict(img_array)
-    predicted_class = np.argmax(prediction)
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-    return render_template("result.html",
-                           prediction=f"Predicted Class: {predicted_class}")
 
-# ---------------------------------------------------
-# Run App
-# ---------------------------------------------------
+# ---------------- PDF ROUTES ----------------
+@app.route("/read")
+def read_pdf():
+    return send_from_directory("static", "report.pdf")
+
+@app.route("/download")
+def download_pdf():
+    return send_from_directory("static", "report.pdf", as_attachment=True)
+
+@app.route("/skip")
+def skip():
+    return redirect("/")
+
+
+# ---------------- RUN ----------------
 if __name__ == "__main__":
     app.run(debug=True)
