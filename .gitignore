@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 static/uploads/
 .env
+dog_breed_model.keras
