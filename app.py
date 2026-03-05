@@ -12,7 +12,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # IMPORTANT: lazy loading
-model = None
+model = load_model("dog_breed_model.keras",compile=False)
 
 class_names = [
     "afghan_hound",
