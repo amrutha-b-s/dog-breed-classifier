@@ -1,65 +1,102 @@
 import os
-from flask import Flask, render_template, request, send_from_directory, redirect
+import numpy as np
+from flask import Flask, render_template, request, send_from_directory
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing import image
 
 app = Flask(__name__)
 
-# Ensure static folder exists
-if not os.path.exists("static"):
-    os.makedirs("static")
+# upload folder
+UPLOAD_FOLDER = "static/uploads"
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+# load trained model
+model = load_model("dog_breed_model.keras")
+
+# IMPORTANT: must match training order
+class_names = [
+    "afghan_hound",
+    "beagle",
+    "bernese_mountain_dog",
+    "maltese_dog",
+    "pomeranian",
+    "samoyed"
+]
+
+# -------------------------
+# prediction function
+# -------------------------
+def predict_image(img_path):
+
+    img = image.load_img(img_path, target_size=(224, 224))
+    img_array = image.img_to_array(img)
+
+    img_array = img_array / 255.0
+    img_array = np.expand_dims(img_array, axis=0)
+
+    predictions = model.predict(img_array)
+
+    predicted_index = np.argmax(predictions)
+    confidence = float(np.max(predictions)) * 100
+
+    breed = class_names[predicted_index]
+
+    return breed, confidence
 
 
-# ---------------- HOME ----------------
+# -------------------------
+# home page
+# -------------------------
 @app.route("/")
-def home():
+def index():
     return render_template("index.html")
 
 
-# ---------------- PREDICT ----------------
+# -------------------------
+# prediction route
+# -------------------------
 @app.route("/predict", methods=["POST"])
 def predict():
-    try:
-        file = request.files.get("file")
 
-        if not file or file.filename == "":
-            return "Please upload an image."
+    if "file" not in request.files:
+        return "No file uploaded"
 
-        # Save uploaded image inside static folder
-        upload_path = os.path.join("static", file.filename)
-        file.save(upload_path)
+    file = request.files["file"]
 
-        # ---- DEMO PREDICTION (for Render Free Plan) ----
-        # Replace this section with real model logic in local version
+    if file.filename == "":
+        return "No selected file"
 
-        breed = "Doberman"
-        confidence = "85.56"
+    filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+    file.save(filepath)
 
-        return render_template(
-            "result.html",
-            breed=breed,
-            confidence=confidence,
-            image_url="/" + upload_path
-        )
+    breed, confidence = predict_image(filepath)
 
-    except Exception as e:
-        return f"Error: {str(e)}"
+    return render_template(
+        "result.html",
+        breed=breed,
+        confidence=round(confidence, 2),
+        image_file=file.filename
+    )
 
 
-# ---------------- PDF ROUTES ----------------
-@app.route("/read")
+# -------------------------
+# read pdf
+# -------------------------
+@app.route("/read_pdf")
 def read_pdf():
     return send_from_directory("static", "report.pdf")
 
 
-@app.route("/download")
+# -------------------------
+# download pdf
+# -------------------------
+@app.route("/download_pdf")
 def download_pdf():
     return send_from_directory("static", "report.pdf", as_attachment=True)
 
 
-@app.route("/skip")
-def skip():
-    return redirect("/")
-
-
-# ---------------- RUN ----------------
+# -------------------------
+# run app
+# -------------------------
 if __name__ == "__main__":
     app.run(debug=True)
