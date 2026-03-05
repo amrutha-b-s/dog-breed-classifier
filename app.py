@@ -6,12 +6,17 @@ from tensorflow.keras.preprocessing import image
 
 app = Flask(__name__)
 
+# upload folder
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+# create upload folder if not exists
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-model = None
+# load trained model
+model = load_model("dog_breed_model.keras")
 
+# class names
 class_names = [
     "afghan_hound",
     "beagle",
@@ -21,19 +26,10 @@ class_names = [
     "samoyed"
 ]
 
-
-def get_model():
-    global model
-    if model is None:
-        model = load_model("dog_breed_model.keras")
-    return model
-
-
+# prediction function
 def predict_image(img_path):
 
-    model = get_model()
-
-    img = image.load_img(img_path, target_size=(224, 224))
+    img = image.load_img(img_path, target_size=(224,224))
     img_array = image.img_to_array(img)
 
     img_array = img_array / 255.0
@@ -49,45 +45,54 @@ def predict_image(img_path):
     return breed, confidence
 
 
+# home page
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
+# prediction route
 @app.route("/predict", methods=["POST"])
 def predict():
 
-    if "file" not in request.files:
-        return "No file uploaded"
+    try:
+        if "file" not in request.files:
+            return "No file uploaded"
 
-    file = request.files["file"]
+        file = request.files["file"]
 
-    if file.filename == "":
-        return "No selected file"
+        if file.filename == "":
+            return "No selected file"
 
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
-    file.save(filepath)
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+        file.save(filepath)
 
-    breed, confidence = predict_image(filepath)
+        breed, confidence = predict_image(filepath)
 
-    return render_template(
-        "result.html",
-        breed=breed,
-        confidence=round(confidence, 2),
-        image_file=file.filename
-    )
+        return render_template(
+            "result.html",
+            breed=breed,
+            confidence=round(confidence,2),
+            image_file=file.filename
+        )
+
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 
+# view pdf
 @app.route("/read_pdf")
 def read_pdf():
     return send_from_directory("static", "report.pdf")
 
 
+# download pdf
 @app.route("/download_pdf")
 def download_pdf():
     return send_from_directory("static", "report.pdf", as_attachment=True)
 
 
+# run app
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT",10000))
     app.run(host="0.0.0.0", port=port)
