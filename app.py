@@ -10,8 +10,6 @@ app = Flask(__name__)
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# load trained model
-model = load_model("dog_breed_model.keras")
 
 # IMPORTANT: must match training order
 class_names = [
@@ -23,10 +21,14 @@ class_names = [
     "samoyed"
 ]
 
-# -------------------------
+
+# ---------------------------
 # prediction function
-# -------------------------
+# ---------------------------
 def predict_image(img_path):
+
+    # load model only when needed
+    model = load_model("dog_breed_model.keras")
 
     img = image.load_img(img_path, target_size=(224, 224))
     img_array = image.img_to_array(img)
@@ -44,17 +46,17 @@ def predict_image(img_path):
     return breed, confidence
 
 
-# -------------------------
+# ---------------------------
 # home page
-# -------------------------
+# ---------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
-# -------------------------
+# ---------------------------
 # prediction route
-# -------------------------
+# ---------------------------
 @app.route("/predict", methods=["POST"])
 def predict():
 
@@ -79,25 +81,25 @@ def predict():
     )
 
 
-# -------------------------
+# ---------------------------
 # read pdf
-# -------------------------
+# ---------------------------
 @app.route("/read_pdf")
 def read_pdf():
     return send_from_directory("static", "report.pdf")
 
 
-# -------------------------
+# ---------------------------
 # download pdf
-# -------------------------
+# ---------------------------
 @app.route("/download_pdf")
 def download_pdf():
     return send_from_directory("static", "report.pdf", as_attachment=True)
 
 
-# -------------------------
+# ---------------------------
 # run app
-# -------------------------
+# ---------------------------
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT",10000))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
