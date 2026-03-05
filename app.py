@@ -6,14 +6,12 @@ from tensorflow.keras.preprocessing import image
 
 app = Flask(__name__)
 
-# Upload folder
 UPLOAD_FOLDER = "static/uploads"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-
-# Ensure upload folder exists (important for Render)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Breed classes (must match training order)
+model = None
+
 class_names = [
     "afghan_hound",
     "beagle",
@@ -23,14 +21,17 @@ class_names = [
     "samoyed"
 ]
 
-# Load trained model
-model = load_model("dog_breed_model.keras")
+
+def get_model():
+    global model
+    if model is None:
+        model = load_model("dog_breed_model.keras")
+    return model
 
 
-# -------------------------
-# Prediction function
-# -------------------------
 def predict_image(img_path):
+
+    model = get_model()
 
     img = image.load_img(img_path, target_size=(224, 224))
     img_array = image.img_to_array(img)
@@ -48,17 +49,11 @@ def predict_image(img_path):
     return breed, confidence
 
 
-# -------------------------
-# Home Page
-# -------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
 
 
-# -------------------------
-# Prediction Route
-# -------------------------
 @app.route("/predict", methods=["POST"])
 def predict():
 
@@ -83,25 +78,16 @@ def predict():
     )
 
 
-# -------------------------
-# Read PDF Route
-# -------------------------
 @app.route("/read_pdf")
 def read_pdf():
     return send_from_directory("static", "report.pdf")
 
 
-# -------------------------
-# Download PDF Route
-# -------------------------
 @app.route("/download_pdf")
 def download_pdf():
     return send_from_directory("static", "report.pdf", as_attachment=True)
 
 
-# -------------------------
-# Run App
-# -------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
